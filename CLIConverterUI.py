@@ -22,11 +22,27 @@ class CLIConverter:
     - Comprehensive input validation and error handling
     - Detailed logging for troubleshooting
     - Pagination support for handling large numbers of entries (10 per page)
+    - Lock/unlock functionality for CLI output (read-only or editable)
+    - Skipped entries tracking and reporting
+    - File save functionality for generated CLI commands
+    
+    GUI Components:
+    - Tabbed interface for Address and Service objects
+    - Dynamic pagination controls for large datasets
+    - Real-time validation and error reporting
+    - Lock/unlock toggle for output text areas
+    - File upload/download capabilities
+    
+    Supported File Formats:
+    - Address Objects: 5-line format (IPv4, Name, IP/Subnet, Zone, Number)
+    - Service Objects: 4-line format (Name, Protocol, Port Start, Port End)
+    - Line numbers and separators are automatically handled
     
     Troubleshooting:
     - Check logs/ directory for detailed error messages
-    - Ensure input files follow the expected 5-line format for addresses
+    - Ensure input files follow the expected formats
     - Verify zones and protocols are in the allowed lists
+    - Use lock/unlock feature to edit CLI output if needed
     """
     
     def __init__(self, root):
@@ -151,9 +167,25 @@ class CLIConverter:
         self.save_address_btn = tk.Button(button_frame, text="Save CLI Output", command=self.save_address_output, state=tk.DISABLED)
         self.save_address_btn.pack(side=tk.LEFT, padx=5)
         
-        # Output area
-        self.address_output = tk.Text(self.address_tab, width=80, height=15)
-        self.address_output.pack(pady=10, fill='both', expand=True)
+        # Output area with lock/unlock controls
+        output_frame = tk.Frame(self.address_tab)
+        output_frame.pack(pady=10, fill='both', expand=True)
+        
+        # Lock/Unlock controls
+        lock_frame = tk.Frame(output_frame)
+        lock_frame.pack(fill='x', pady=(0, 5))
+        
+        tk.Label(lock_frame, text="CLI Output:", font=('Arial', 9, 'bold')).pack(side=tk.LEFT)
+        
+        self.address_lock_var = tk.BooleanVar(value=True)  # Locked by default
+        self.address_lock_btn = tk.Checkbutton(lock_frame, text="🔒 Lock Output (Read-only)", 
+                                             variable=self.address_lock_var, 
+                                             command=self.toggle_address_output_lock)
+        self.address_lock_btn.pack(side=tk.RIGHT)
+        
+        # Output text area
+        self.address_output = tk.Text(output_frame, width=80, height=15, state=tk.DISABLED)
+        self.address_output.pack(fill='both', expand=True)
         
         # Initialize with one entry
         self.create_address_entry()
@@ -216,9 +248,25 @@ class CLIConverter:
         self.save_service_btn = tk.Button(button_frame, text="Save CLI Output", command=self.save_service_output, state=tk.DISABLED)
         self.save_service_btn.pack(side=tk.LEFT, padx=5)
         
-        # Output area
-        self.service_output = tk.Text(self.service_tab, width=80, height=15)
-        self.service_output.pack(pady=10, fill='both', expand=True)
+        # Output area with lock/unlock controls
+        output_frame = tk.Frame(self.service_tab)
+        output_frame.pack(pady=10, fill='both', expand=True)
+        
+        # Lock/Unlock controls
+        lock_frame = tk.Frame(output_frame)
+        lock_frame.pack(fill='x', pady=(0, 5))
+        
+        tk.Label(lock_frame, text="CLI Output:", font=('Arial', 9, 'bold')).pack(side=tk.LEFT)
+        
+        self.service_lock_var = tk.BooleanVar(value=True)  # Locked by default
+        self.service_lock_btn = tk.Checkbutton(lock_frame, text="🔒 Lock Output (Read-only)", 
+                                             variable=self.service_lock_var, 
+                                             command=self.toggle_service_output_lock)
+        self.service_lock_btn.pack(side=tk.RIGHT)
+        
+        # Output text area
+        self.service_output = tk.Text(output_frame, width=80, height=15, state=tk.DISABLED)
+        self.service_output.pack(fill='both', expand=True)
         
         # Initialize with one entry
         self.create_service_entry()
@@ -509,6 +557,8 @@ class CLIConverter:
         if not filename:
             return  # User canceled file selection
 
+        self.skipped_entries = []  # Initialize skipped entries list
+
         try:
             with open(filename, 'r', encoding='utf-8') as file:
                 lines = file.readlines()
@@ -573,13 +623,17 @@ class CLIConverter:
                     
                     # Skip if essential fields are empty (subnet can be empty for single hosts)
                     if not name_line or not ip or not zone:
+                        # Keep track of skipped entries
+                        self.skipped_entries.append({'name': name_line, 'ip': ip, 'subnet': subnet, 'zone': zone, 'reason': 'Empty field'})
                         continue
-                    
+
                     # Validate zone is in allowed list
                     if zone not in self.allowed_zones:
                         self.logger.warning(f"Zone '{zone}' not in allowed list, skipping entry '{name_line}'")
+                        # Keep track of skipped entries
+                        self.skipped_entries.append({'name': name_line, 'ip': ip, 'subnet': subnet, 'zone': zone, 'reason': 'Invalid zone'})
                         continue
-                    
+
                     self.logger.debug(f"Parsing entry {count + 1}: name='{name_line}', ip='{ip}', subnet='{subnet}', zone='{zone}'")
                     
                     # Use first entry if it's empty, otherwise create new
@@ -600,7 +654,12 @@ class CLIConverter:
                     count += 1
                     self.logger.info(f"Loaded address: {name_line} ({ip} {subnet} {zone})")
                         
-                messagebox.showinfo("Success", f"Loaded {count} address objects from file.")
+                messagebox.showinfo("Success", f"Loaded {count} address objects from file.\nSkipped {len(self.skipped_entries)} entries. Click for details.")
+
+                # Show details of skipped entries if any
+                if self.skipped_entries:
+                    skipped_info = "\n".join([f"{e['name']}: {e['reason']}" for e in self.skipped_entries])
+                    messagebox.showinfo("Skipped Entries Details", skipped_info)
                 
         except Exception as e:
             self.logger.error(f"Failed to load file: {str(e)}")
@@ -644,9 +703,13 @@ class CLIConverter:
             # Generate CLI commands
             cli_commands = self.generate_address_cli_commands(valid_entries, sr_number, group_name)
             
-            # Display output
+            # Display output - temporarily enable widget to insert text
+            self.address_output.config(state=tk.NORMAL)
             self.address_output.delete(1.0, tk.END)
             self.address_output.insert(tk.END, cli_commands)
+            # Restore lock state based on checkbox
+            if self.address_lock_var.get():
+                self.address_output.config(state=tk.DISABLED)
             
             # Store for saving
             self.address_cli_output = cli_commands
@@ -740,6 +803,17 @@ class CLIConverter:
         commands.append("exit")
         
         return "\n".join(commands)
+
+    def toggle_address_output_lock(self):
+        """Toggle the lock state of the address output text widget"""
+        if self.address_lock_var.get():
+            # Lock the output (read-only)
+            self.address_output.config(state=tk.DISABLED)
+            self.address_lock_btn.config(text="🔒 Lock Output (Read-only)")
+        else:
+            # Unlock the output (editable)
+            self.address_output.config(state=tk.NORMAL)
+            self.address_lock_btn.config(text="🔓 Unlock Output (Editable)")
 
     def save_address_output(self):
         """Save address CLI output to file"""
@@ -932,9 +1006,13 @@ class CLIConverter:
             # Generate CLI commands
             cli_commands = self.generate_service_cli_commands(valid_entries, sr_number, group_name)
             
-            # Display output
+            # Display output - temporarily enable widget to insert text
+            self.service_output.config(state=tk.NORMAL)
             self.service_output.delete(1.0, tk.END)
             self.service_output.insert(tk.END, cli_commands)
+            # Restore lock state based on checkbox
+            if self.service_lock_var.get():
+                self.service_output.config(state=tk.DISABLED)
             
             # Store for saving
             self.service_cli_output = cli_commands
@@ -1027,6 +1105,17 @@ class CLIConverter:
         commands.append("exit")
         
         return "\n".join(commands)
+
+    def toggle_service_output_lock(self):
+        """Toggle the lock state of the service output text widget"""
+        if self.service_lock_var.get():
+            # Lock the output (read-only)
+            self.service_output.config(state=tk.DISABLED)
+            self.service_lock_btn.config(text="🔒 Lock Output (Read-only)")
+        else:
+            # Unlock the output (editable)
+            self.service_output.config(state=tk.NORMAL)
+            self.service_lock_btn.config(text="🔓 Unlock Output (Editable)")
 
     def save_service_output(self):
         """Save service CLI output to file"""
