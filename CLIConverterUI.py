@@ -14,10 +14,26 @@ class CLIConverter:
         # Setup logging for troubleshooting
         self.setup_logging()
         self.logger.info("Application started")
+        
+        # Application version and metadata
+        self.version = "2.1"
+        self.author = "Network Admin Tools"
+        self.last_updated = "2025-01-05"
+
+        # Define allowed zones and regex patterns for address objects
+        self.allowed_zones = {"WAN", "LAN", "MDT", "CLIENT LAN", "SYSINT", "SYSEXT", "SYSCLIENT", "DMZ"}
+        self.ip_regex = r"^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$"
+        self.network_regex = r"^((\d{1,3}\.){3}\d{1,3})/(3[0-2]|[12]?\d)$"
+        self.fqdn_regex = r"(?=^.{4,253}$)(^(\*\.)?((?!-)[a-zA-Z0-9-]{0,62}[a-zA-Z0-9]\.)+[a-zA-Z]{2,63}$)"
+        self.ip_with_subnet_regex = r"^((\d{1,3}\.){3}\d{1,3}) ((\d{1,3}\.){3}\d{1,3})$"
+        self.cidr_regex = r"^((\d{1,3}\.){3}\d{1,3})/(3[0-2]|[12]?\d)$"
+        
+        # Define allowed protocols for service objects
+        self.allowed_protocols = {"IGMP", "TCP", "ICMP", "UDP", "6over4", "GRE", "ESP", "AH", "ICMPv6", "EIGRP", "OSPF", "PIM", "L2TP"}
 
         # Create tabs
         self.notebook = ttk.Notebook(root)
-        self.notebook.pack(expand=1, fill='both')
+        self.notebook.pack(expand=1, fill='both', padx=10, pady=10)
 
         # Address Object Tab
         self.address_tab = ttk.Frame(self.notebook)
