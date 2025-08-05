@@ -65,48 +65,27 @@ Contributions are welcome. Please submit a pull request or report issues via the
 - GUI development with Python's Tkinter library.
 
 
-## Overview
+## Supported File Formats
 
-The SonicWall CLI Converter UI is a graphical application designed to convert network address and service objects from structured input into SonicWall CLI commands. The application supports:
+### Address Objects
+```
+IPv4
+Server_Name
+192.168.1.10/255.255.255.255
+LAN
+2
+```
 
-- IPs
-- Subnets
-- Zones
-- Optional group names for address objects
+### Service Objects
+```
+HTTP_Service
+TCP
+80
+80
+```
 
-## Features
+## Supported Zones
+WAN, LAN, DMZ, MDT, CLIENT LAN, SYSINT, SYSEXT, SYSCLIENT, NOC
 
-- **Multiple Input Formats**: Supports manual entry or uploading a structured TXT file to auto-fill entries.
-- **Input Validation**: Validates IP addresses, subnet masks, and FQDN formats.
-- **CLI Generation**: Converts entered/loaded data into SonicWall CLI commands.
-- **Add/Remove Entries**: Dynamically add and remove entry rows with buttons for each row.
-- **Logging**: Comprehensive logging for troubleshooting.
-
-## Installation
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/Crispy-Pasta/SonicwallCLIConverter.git
-   cd SonicwallCLIConverter
-   ```
-
-2. **Run the Application**
-   - Ensure you have Python 3.x installed.
-   - Run the following command:
-   ```bash
-   python CLIConverterUI.py
-   ```
-
-## Project Structure
-
-- `CLIConverterUI.py`: Main application code.
-- `logs/`: Directory for log files.
-
-## Requirements
-
-- Python 3.x
-- Tkinter
-
-## License
-
-This project is licensed under the MIT License.
+## Supported Protocols
+TCP, UDP, ICMP, IGMP, GRE, ESP, AH, ICMPv6, EIGRP, OSPF, PIM, L2TP, 6over4

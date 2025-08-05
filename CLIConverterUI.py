@@ -7,7 +7,34 @@ from datetime import datetime
 import os
 
 class CLIConverter:
+    """
+    SonicWall CLI Converter v2.1 - Main Application Class
+    
+    This class provides a GUI interface for converting SonicWall network objects
+    (address and service objects) from text files or manual entry into properly
+    formatted CLI commands for SonicWall devices.
+    
+    Features:
+    - Address object conversion with IP/CIDR/FQDN support
+    - Service object conversion with protocol and port support
+    - Mixed format file parsing (handles IPv4 type indicators and separators)
+    - Group creation for both address and service objects
+    - Comprehensive input validation and error handling
+    - Detailed logging for troubleshooting
+    
+    Troubleshooting:
+    - Check logs/ directory for detailed error messages
+    - Ensure input files follow the expected 5-line format for addresses
+    - Verify zones and protocols are in the allowed lists
+    """
+    
     def __init__(self, root):
+        """
+        Initialize the CLI Converter application.
+        
+        Args:
+            root: Tkinter root window object
+        """
         self.root = root
         self.root.title("SonicWall CLI Converter v2.1")
 
@@ -18,7 +45,7 @@ class CLIConverter:
         # Application version and metadata
         self.version = "2.1"
         self.author = "Network Admin Tools"
-        self.last_updated = "2025-01-05"
+        self.last_updated = "2025-08-05"
 
         # Define allowed zones and regex patterns for address objects
         self.allowed_zones = {"WAN", "LAN", "MDT", "CLIENT LAN", "SYSINT", "SYSEXT", "SYSCLIENT", "DMZ", "NOC"}
@@ -271,6 +298,25 @@ class CLIConverter:
 
     # Address object functionality methods
     def upload_address_txt(self):
+        """
+        Upload and parse address objects from a TXT file.
+        
+        Supports multiple file formats:
+        1. Standard 4-line format: Name, IP, Subnet, Zone
+        2. Mixed 5-line format: IPv4, Name, IP/Subnet, Zone, Number
+        
+        Troubleshooting:
+        - "list index out of range": Check file format, ensure complete entries
+        - "Zone not in allowed list": Use supported zones or update allowed_zones
+        - "Failed to load file": Check file encoding (UTF-8) and format
+        
+        File Format Example (Mixed):
+        IPv4
+        Server_Name
+        192.168.1.10/255.255.255.255
+        LAN
+        2
+        """
         filename = filedialog.askopenfilename(
             title="Select Address Objects TXT",
             filetypes=(('Text Files', '*.txt'),)
@@ -446,7 +492,28 @@ class CLIConverter:
         return False
     
     def generate_address_cli_commands(self, entries, sr_number, group_name):
-        """Generate SonicWall CLI commands for address objects"""
+        """
+        Generate SonicWall CLI commands for address objects.
+        
+        Creates properly formatted CLI commands based on address type:
+        - Host: Single IP address
+        - Network with mask: IP with subnet mask
+        - Network CIDR: IP with CIDR notation
+        - FQDN: Fully qualified domain name
+        
+        Args:
+            entries: List of address object dictionaries
+            sr_number: Service request number for documentation
+            group_name: Optional group name to create address group
+            
+        Returns:
+            String containing formatted CLI commands
+            
+        Troubleshooting:
+        - Ensure all entries have valid IP formats
+        - Check that zones exist in SonicWall configuration
+        - Verify object names don't contain special characters
+        """
         commands = []
         
         # Add header comment
@@ -512,6 +579,26 @@ class CLIConverter:
                 messagebox.showerror("Error", f"Error saving file: {str(e)}")
 
     def upload_service_txt(self):
+        """
+        Upload and parse service objects from a TXT file.
+        
+        Expected format (4 lines per service):
+        - Service Name
+        - Protocol (TCP, UDP, ICMP, etc.)
+        - Port Start
+        - Port End
+        
+        Troubleshooting:
+        - "Protocol not in allowed list": Check supported protocols or update allowed_protocols
+        - "Invalid port range": Ensure ports are 1-65535 and start <= end
+        - "No valid service entries": Check file format and required fields
+        
+        File Format Example:
+        HTTP_Service
+        TCP
+        80
+        80
+        """
         filename = filedialog.askopenfilename(
             title="Select Service Objects TXT",
             filetypes=(('Text Files', '*.txt'),)
@@ -688,7 +775,27 @@ class CLIConverter:
             return False
     
     def generate_service_cli_commands(self, entries, sr_number, group_name):
-        """Generate SonicWall CLI commands for service objects"""
+        """
+        Generate SonicWall CLI commands for service objects.
+        
+        Creates CLI commands based on protocol and port configuration:
+        - TCP/UDP: Single port or port range
+        - ICMP: Protocol only
+        - Other protocols: Protocol specification
+        
+        Args:
+            entries: List of service object dictionaries
+            sr_number: Service request number for documentation
+            group_name: Optional group name to create service group
+            
+        Returns:
+            String containing formatted CLI commands
+            
+        Troubleshooting:
+        - Verify protocol names match SonicWall supported protocols
+        - Check port ranges are valid (1-65535)
+        - Ensure service names are unique
+        """
         commands = []
         
         # Add header comment
