@@ -1,0 +1,22 @@
+```uml
+@startuml
+
+User -> GUI: Launch Application
+GUI -> Logger: Initialize logging
+User -> GUI: Add Entry
+GUI -> App: Create new entry fields
+User -> GUI: Upload TXT File
+GUI -> FileSystem: Read TXT file
+FileSystem -> GUI: Provide data
+GUI -> App: Parse and populate fields
+User -> GUI: Convert to CLI
+App -> Parser: Validate and convert data
+Parser -> Logger: Log conversion process
+Parser -> CLIOutput: Generate commands
+GUI -> User: Display CLI output
+User -> GUI: Save CLI Output
+GUI -> FileSystem: Write output to file
+
+@enduml
+```
+

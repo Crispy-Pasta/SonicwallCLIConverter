@@ -1,0 +1,12 @@
+# SonicWall CLI Converter UI Requirements
+# This application uses only standard Python libraries
+
+# Core dependencies (usually included with Python)
+# tkinter - GUI framework (included with most Python installations)
+
+# Note: This application is designed to work with standard Python 3.7+ installations
+# No additional packages need to be installed via pip
+
+# For development/testing (optional):
+# pytest>=6.0.0
+# flake8>=3.8.0
