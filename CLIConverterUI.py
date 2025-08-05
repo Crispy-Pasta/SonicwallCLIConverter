@@ -8,7 +8,7 @@ import os
 
 class CLIConverter:
     """
-    SonicWall CLI Converter v2.1 - Main Application Class
+    SonicWall CLI Converter v2.2 - Main Application Class
     
     This class provides a GUI interface for converting SonicWall network objects
     (address and service objects) from text files or manual entry into properly
@@ -21,6 +21,7 @@ class CLIConverter:
     - Group creation for both address and service objects
     - Comprehensive input validation and error handling
     - Detailed logging for troubleshooting
+    - Pagination support for handling large numbers of entries (10 per page)
     
     Troubleshooting:
     - Check logs/ directory for detailed error messages
@@ -36,16 +37,21 @@ class CLIConverter:
             root: Tkinter root window object
         """
         self.root = root
-        self.root.title("SonicWall CLI Converter v2.1")
+        self.root.title("SonicWall CLI Converter v2.2")
 
         # Setup logging for troubleshooting
         self.setup_logging()
         self.logger.info("Application started")
         
         # Application version and metadata
-        self.version = "2.1"
+        self.version = "2.2"
         self.author = "Network Admin Tools"
         self.last_updated = "2025-08-05"
+        
+        # Pagination settings
+        self.entries_per_page = 10
+        self.current_address_page = 0
+        self.current_service_page = 0
 
         # Define allowed zones and regex patterns for address objects
         self.allowed_zones = {"WAN", "LAN", "MDT", "CLIENT LAN", "SYSINT", "SYSEXT", "SYSCLIENT", "DMZ", "NOC"}
@@ -119,7 +125,21 @@ class CLIConverter:
         tk.Label(self.main_address_frame, text="Action", font=('Arial', 9, 'bold')).grid(row=0, column=4, padx=5, sticky='w')
         
         self.next_address_row = 1
-        self.address_entries = []
+        self.address_entries = []  # All entries data
+        self.displayed_address_entries = []  # Currently displayed entry widgets
+        
+        # Pagination controls for address tab
+        pagination_frame = tk.Frame(self.address_tab)
+        pagination_frame.pack(pady=5)
+        
+        self.prev_address_btn = tk.Button(pagination_frame, text="← Previous", command=self.prev_address_page, state=tk.DISABLED)
+        self.prev_address_btn.pack(side=tk.LEFT, padx=5)
+        
+        self.address_page_label = tk.Label(pagination_frame, text="Page 1 of 1 (0 entries)")
+        self.address_page_label.pack(side=tk.LEFT, padx=10)
+        
+        self.next_address_btn = tk.Button(pagination_frame, text="Next →", command=self.next_address_page, state=tk.DISABLED)
+        self.next_address_btn.pack(side=tk.LEFT, padx=5)
         
         # Button frame
         button_frame = tk.Frame(self.address_tab)
@@ -170,7 +190,21 @@ class CLIConverter:
         tk.Label(self.main_service_frame, text="Action", font=('Arial', 9, 'bold')).grid(row=0, column=5, padx=5, sticky='w')
         
         self.next_service_row = 1
-        self.service_entries = []
+        self.service_entries = []  # All entries data
+        self.displayed_service_entries = []  # Currently displayed entry widgets
+        
+        # Pagination controls for service tab
+        service_pagination_frame = tk.Frame(self.service_tab)
+        service_pagination_frame.pack(pady=5)
+        
+        self.prev_service_btn = tk.Button(service_pagination_frame, text="← Previous", command=self.prev_service_page, state=tk.DISABLED)
+        self.prev_service_btn.pack(side=tk.LEFT, padx=5)
+        
+        self.service_page_label = tk.Label(service_pagination_frame, text="Page 1 of 1 (0 entries)")
+        self.service_page_label.pack(side=tk.LEFT, padx=10)
+        
+        self.next_service_btn = tk.Button(service_pagination_frame, text="Next →", command=self.next_service_page, state=tk.DISABLED)
+        self.next_service_btn.pack(side=tk.LEFT, padx=5)
         
         # Button frame
         button_frame = tk.Frame(self.service_tab)
@@ -193,108 +227,259 @@ class CLIConverter:
         self.service_cli_output = ""
 
     def create_address_entry(self):
-        """Add a new address entry row"""
-        entry_data = {'row': self.next_address_row}
-
-        # Name Entry
-        name_var = tk.StringVar()
-        name_entry = tk.Entry(self.main_address_frame, textvariable=name_var, width=20)
-        name_entry.grid(row=self.next_address_row, column=0, padx=5)
-        entry_data['name'] = name_var
-        entry_data['name_widget'] = name_entry
-
-        # IP Address Entry
-        ip_var = tk.StringVar()
-        ip_entry = tk.Entry(self.main_address_frame, textvariable=ip_var, width=15)
-        ip_entry.grid(row=self.next_address_row, column=1, padx=5)
-        entry_data['ip'] = ip_var
-        entry_data['ip_widget'] = ip_entry
-
-        # Subnet Entry
-        subnet_var = tk.StringVar()
-        subnet_entry = tk.Entry(self.main_address_frame, textvariable=subnet_var, width=15)
-        subnet_entry.grid(row=self.next_address_row, column=2, padx=5)
-        entry_data['subnet'] = subnet_var
-        entry_data['subnet_widget'] = subnet_entry
-
-        # Zone Dropdown
-        zone_var = tk.StringVar()
-        zone_combo = ttk.Combobox(self.main_address_frame, textvariable=zone_var, 
-                                  values=list(self.allowed_zones), width=12, state="readonly")
-        zone_combo.grid(row=self.next_address_row, column=3, padx=5)
-        entry_data['zone'] = zone_var
-        entry_data['zone_widget'] = zone_combo
-
-        # Remove Button
-        remove_btn = tk.Button(self.main_address_frame, text="Remove", command=lambda: self.remove_entry(entry_data))
-        remove_btn.grid(row=self.next_address_row, column=4, padx=5)
-        entry_data['remove_btn'] = remove_btn
-
+        """Add a new address entry (data only, widgets created during pagination)"""
+        entry_data = {
+            'name': tk.StringVar(),
+            'ip': tk.StringVar(),
+            'subnet': tk.StringVar(),
+            'zone': tk.StringVar(),
+            'widgets_created': False
+        }
+        
         self.address_entries.append(entry_data)
-        self.next_address_row += 1
+        self.update_address_pagination()
+        return entry_data
 
     def remove_entry(self, entry_data):
-        """Remove the entry row"""
-        for widget in entry_data.values():
-            if hasattr(widget, 'grid_forget'):
-                widget.grid_forget()
-        self.address_entries.remove(entry_data)
+        """Remove the address entry"""
+        if entry_data in self.address_entries:
+            self.address_entries.remove(entry_data)
+            self.update_address_pagination()
 
     def create_service_entry(self):
-        """Add a new service entry row"""
-        entry_data = {'row': self.next_service_row}
-
-        # Name Entry
-        name_var = tk.StringVar()
-        name_entry = tk.Entry(self.main_service_frame, textvariable=name_var, width=20)
-        name_entry.grid(row=self.next_service_row, column=0, padx=5)
-        entry_data['name'] = name_var
-        entry_data['name_widget'] = name_entry
-
-        # Protocol Dropdown
-        protocol_var = tk.StringVar()
-        protocol_combo = ttk.Combobox(self.main_service_frame, textvariable=protocol_var, 
-                                     values=list(self.allowed_protocols), width=10, state="readonly")
-        protocol_combo.grid(row=self.next_service_row, column=1, padx=5)
-        entry_data['protocol'] = protocol_var
-        entry_data['protocol_widget'] = protocol_combo
-
-        # Port Start Entry
-        port_start_var = tk.StringVar()
-        port_start_entry = tk.Entry(self.main_service_frame, textvariable=port_start_var, width=10)
-        port_start_entry.grid(row=self.next_service_row, column=2, padx=5)
-        entry_data['port_start'] = port_start_var
-        entry_data['port_start_widget'] = port_start_entry
-
-        # Port End Entry
-        port_end_var = tk.StringVar()
-        port_end_entry = tk.Entry(self.main_service_frame, textvariable=port_end_var, width=10)
-        port_end_entry.grid(row=self.next_service_row, column=3, padx=5)
-        entry_data['port_end'] = port_end_var
-        entry_data['port_end_widget'] = port_end_entry
-
-        # Zone Dropdown
-        zone_var = tk.StringVar()
-        zone_combo = ttk.Combobox(self.main_service_frame, textvariable=zone_var, 
-                                  values=list(self.allowed_zones), width=12, state="readonly")
-        zone_combo.grid(row=self.next_service_row, column=4, padx=5)
-        entry_data['zone'] = zone_var
-        entry_data['zone_widget'] = zone_combo
-
-        # Remove Button
-        remove_btn = tk.Button(self.main_service_frame, text="Remove", command=lambda: self.remove_service_entry(entry_data))
-        remove_btn.grid(row=self.next_service_row, column=5, padx=5)
-        entry_data['remove_btn'] = remove_btn
-
+        """Add a new service entry (data only, widgets created during pagination)"""
+        entry_data = {
+            'name': tk.StringVar(),
+            'protocol': tk.StringVar(),
+            'port_start': tk.StringVar(),
+            'port_end': tk.StringVar(),
+            'zone': tk.StringVar(),
+            'widgets_created': False
+        }
+        
         self.service_entries.append(entry_data)
-        self.next_service_row += 1
+        self.update_service_pagination()
+        return entry_data
 
     def remove_service_entry(self, entry_data):
-        """Remove the service entry row"""
-        for widget in entry_data.values():
-            if hasattr(widget, 'grid_forget'):
-                widget.grid_forget()
-        self.service_entries.remove(entry_data)
+        """Remove the service entry"""
+        if entry_data in self.service_entries:
+            self.service_entries.remove(entry_data)
+            self.update_service_pagination()
+    
+    # Pagination methods for Address tab
+    def update_address_pagination(self):
+        """Update address pagination display and controls"""
+        total_entries = len(self.address_entries)
+        total_pages = max(1, (total_entries + self.entries_per_page - 1) // self.entries_per_page)
+        
+        # Ensure current page is valid
+        if self.current_address_page >= total_pages:
+            self.current_address_page = max(0, total_pages - 1)
+        
+        # Update pagination label
+        self.address_page_label.config(text=f"Page {self.current_address_page + 1} of {total_pages} ({total_entries} entries)")
+        
+        # Update button states
+        self.prev_address_btn.config(state=tk.NORMAL if self.current_address_page > 0 else tk.DISABLED)
+        self.next_address_btn.config(state=tk.NORMAL if self.current_address_page < total_pages - 1 else tk.DISABLED)
+        
+        # Display current page entries
+        self.display_address_page()
+    
+    def display_address_page(self):
+        """Display entries for current address page"""
+        # Clear currently displayed widgets
+        self.clear_address_widgets()
+        
+        # Calculate range for current page
+        start_idx = self.current_address_page * self.entries_per_page
+        end_idx = min(start_idx + self.entries_per_page, len(self.address_entries))
+        
+        # Create widgets for entries in current page
+        for i, entry_idx in enumerate(range(start_idx, end_idx)):
+            entry_data = self.address_entries[entry_idx]
+            row = i + 1  # +1 to account for header row
+            
+            # Create widgets for this entry
+            self.create_address_widgets(entry_data, row)
+            entry_data['widgets_created'] = True
+    
+    def create_address_widgets(self, entry_data, row):
+        """Create GUI widgets for an address entry"""
+        # Name Entry
+        name_entry = tk.Entry(self.main_address_frame, textvariable=entry_data['name'], width=20)
+        name_entry.grid(row=row, column=0, padx=5, pady=2)
+        entry_data['name_widget'] = name_entry
+        
+        # IP Address Entry
+        ip_entry = tk.Entry(self.main_address_frame, textvariable=entry_data['ip'], width=15)
+        ip_entry.grid(row=row, column=1, padx=5, pady=2)
+        entry_data['ip_widget'] = ip_entry
+        
+        # Subnet Entry
+        subnet_entry = tk.Entry(self.main_address_frame, textvariable=entry_data['subnet'], width=15)
+        subnet_entry.grid(row=row, column=2, padx=5, pady=2)
+        entry_data['subnet_widget'] = subnet_entry
+        
+        # Zone Dropdown
+        zone_combo = ttk.Combobox(self.main_address_frame, textvariable=entry_data['zone'], 
+                                  values=list(self.allowed_zones), width=12, state="readonly")
+        zone_combo.grid(row=row, column=3, padx=5, pady=2)
+        entry_data['zone_widget'] = zone_combo
+        
+        # Remove Button
+        remove_btn = tk.Button(self.main_address_frame, text="Remove", 
+                              command=lambda: self.remove_entry(entry_data))
+        remove_btn.grid(row=row, column=4, padx=5, pady=2)
+        entry_data['remove_btn'] = remove_btn
+        
+        # Store widget references for cleanup
+        self.displayed_address_entries.append(entry_data)
+    
+    def clear_address_widgets(self):
+        """Clear all displayed address entry widgets"""
+        for entry_data in self.displayed_address_entries:
+            if 'name_widget' in entry_data:
+                entry_data['name_widget'].destroy()
+                entry_data['ip_widget'].destroy()
+                entry_data['subnet_widget'].destroy()
+                entry_data['zone_widget'].destroy()
+                entry_data['remove_btn'].destroy()
+                
+                # Remove widget references
+                entry_data.pop('name_widget', None)
+                entry_data.pop('ip_widget', None)
+                entry_data.pop('subnet_widget', None)
+                entry_data.pop('zone_widget', None)
+                entry_data.pop('remove_btn', None)
+                entry_data['widgets_created'] = False
+        
+        self.displayed_address_entries.clear()
+    
+    def prev_address_page(self):
+        """Go to previous address page"""
+        if self.current_address_page > 0:
+            self.current_address_page -= 1
+            self.update_address_pagination()
+    
+    def next_address_page(self):
+        """Go to next address page"""
+        total_pages = max(1, (len(self.address_entries) + self.entries_per_page - 1) // self.entries_per_page)
+        if self.current_address_page < total_pages - 1:
+            self.current_address_page += 1
+            self.update_address_pagination()
+    
+    # Pagination methods for Service tab
+    def update_service_pagination(self):
+        """Update service pagination display and controls"""
+        total_entries = len(self.service_entries)
+        total_pages = max(1, (total_entries + self.entries_per_page - 1) // self.entries_per_page)
+        
+        # Ensure current page is valid
+        if self.current_service_page >= total_pages:
+            self.current_service_page = max(0, total_pages - 1)
+        
+        # Update pagination label
+        self.service_page_label.config(text=f"Page {self.current_service_page + 1} of {total_pages} ({total_entries} entries)")
+        
+        # Update button states
+        self.prev_service_btn.config(state=tk.NORMAL if self.current_service_page > 0 else tk.DISABLED)
+        self.next_service_btn.config(state=tk.NORMAL if self.current_service_page < total_pages - 1 else tk.DISABLED)
+        
+        # Display current page entries
+        self.display_service_page()
+    
+    def display_service_page(self):
+        """Display entries for current service page"""
+        # Clear currently displayed widgets
+        self.clear_service_widgets()
+        
+        # Calculate range for current page
+        start_idx = self.current_service_page * self.entries_per_page
+        end_idx = min(start_idx + self.entries_per_page, len(self.service_entries))
+        
+        # Create widgets for entries in current page
+        for i, entry_idx in enumerate(range(start_idx, end_idx)):
+            entry_data = self.service_entries[entry_idx]
+            row = i + 1  # +1 to account for header row
+            
+            # Create widgets for this entry
+            self.create_service_widgets(entry_data, row)
+            entry_data['widgets_created'] = True
+    
+    def create_service_widgets(self, entry_data, row):
+        """Create GUI widgets for a service entry"""
+        # Name Entry
+        name_entry = tk.Entry(self.main_service_frame, textvariable=entry_data['name'], width=20)
+        name_entry.grid(row=row, column=0, padx=5, pady=2)
+        entry_data['name_widget'] = name_entry
+        
+        # Protocol Dropdown
+        protocol_combo = ttk.Combobox(self.main_service_frame, textvariable=entry_data['protocol'], 
+                                     values=list(self.allowed_protocols), width=10, state="readonly")
+        protocol_combo.grid(row=row, column=1, padx=5, pady=2)
+        entry_data['protocol_widget'] = protocol_combo
+        
+        # Port Start Entry
+        port_start_entry = tk.Entry(self.main_service_frame, textvariable=entry_data['port_start'], width=10)
+        port_start_entry.grid(row=row, column=2, padx=5, pady=2)
+        entry_data['port_start_widget'] = port_start_entry
+        
+        # Port End Entry
+        port_end_entry = tk.Entry(self.main_service_frame, textvariable=entry_data['port_end'], width=10)
+        port_end_entry.grid(row=row, column=3, padx=5, pady=2)
+        entry_data['port_end_widget'] = port_end_entry
+        
+        # Zone Dropdown
+        zone_combo = ttk.Combobox(self.main_service_frame, textvariable=entry_data['zone'], 
+                                  values=list(self.allowed_zones), width=12, state="readonly")
+        zone_combo.grid(row=row, column=4, padx=5, pady=2)
+        entry_data['zone_widget'] = zone_combo
+        
+        # Remove Button
+        remove_btn = tk.Button(self.main_service_frame, text="Remove", 
+                              command=lambda: self.remove_service_entry(entry_data))
+        remove_btn.grid(row=row, column=5, padx=5, pady=2)
+        entry_data['remove_btn'] = remove_btn
+        
+        # Store widget references for cleanup
+        self.displayed_service_entries.append(entry_data)
+    
+    def clear_service_widgets(self):
+        """Clear all displayed service entry widgets"""
+        for entry_data in self.displayed_service_entries:
+            if 'name_widget' in entry_data:
+                entry_data['name_widget'].destroy()
+                entry_data['protocol_widget'].destroy()
+                entry_data['port_start_widget'].destroy()
+                entry_data['port_end_widget'].destroy()
+                entry_data['zone_widget'].destroy()
+                entry_data['remove_btn'].destroy()
+                
+                # Remove widget references
+                entry_data.pop('name_widget', None)
+                entry_data.pop('protocol_widget', None)
+                entry_data.pop('port_start_widget', None)
+                entry_data.pop('port_end_widget', None)
+                entry_data.pop('zone_widget', None)
+                entry_data.pop('remove_btn', None)
+                entry_data['widgets_created'] = False
+        
+        self.displayed_service_entries.clear()
+    
+    def prev_service_page(self):
+        """Go to previous service page"""
+        if self.current_service_page > 0:
+            self.current_service_page -= 1
+            self.update_service_pagination()
+    
+    def next_service_page(self):
+        """Go to next service page"""
+        total_pages = max(1, (len(self.service_entries) + self.entries_per_page - 1) // self.entries_per_page)
+        if self.current_service_page < total_pages - 1:
+            self.current_service_page += 1
+            self.update_service_pagination()
 
     # Address object functionality methods
     def upload_address_txt(self):

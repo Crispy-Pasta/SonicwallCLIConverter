@@ -1,4 +1,4 @@
-# SonicWall CLI Converter v2.1
+# SonicWall CLI Converter v2.2
 
 ## Overview
 
@@ -10,6 +10,7 @@ The SonicWall CLI Converter UI is a graphical application that facilitates the c
 - **Validation and Parsing**: Validates IPs, subnets, FQDNs, zones, and protocols with robust parsing logic.
 - **Command Generation**: Produces SonicWall CLI commands suitable for network configurations.
 - **Dynamic Entry Management**: Allows dynamic addition/removal of entry rows with inline editing.
+- **Pagination Support**: Efficiently handles large files with 50+ entries using 10 entries per page.
 - **Comprehensive Logging**: Provides detailed logs for troubleshooting and debugging.
 
 ## Installation
@@ -43,6 +44,7 @@ This project is licensed under the MIT License.
 
 ## Version History
 
+- **v2.2 (2025-08-05)**: Added pagination support for handling large numbers of entries (10 per page), improved GUI scalability.
 - **v2.1 (2025-08-05)**: Enhanced parsing for mixed formats, added NOC zone, improved logging.
 - **v2.0**: Introduced service object handling, tabbed UI, and enhanced validation.
 - **v1.0**: Initial release with address object handling.
