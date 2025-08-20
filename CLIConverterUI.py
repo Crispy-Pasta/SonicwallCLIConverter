@@ -166,6 +166,8 @@ class CLIConverter:
         tk.Button(button_frame, text="Convert to CLI", command=self.convert_address_to_cli).pack(side=tk.LEFT, padx=5)
         self.save_address_btn = tk.Button(button_frame, text="Save CLI Output", command=self.save_address_output, state=tk.DISABLED)
         self.save_address_btn.pack(side=tk.LEFT, padx=5)
+
+        tk.Button(button_frame, text="Clear Form", command=self.clear_address_form, bg="#DC143C", fg="white").pack(side=tk.RIGHT, padx=5)
         
         # Output area with lock/unlock controls
         output_frame = tk.Frame(self.address_tab)
@@ -247,6 +249,8 @@ class CLIConverter:
         tk.Button(button_frame, text="Convert to CLI", command=self.convert_service_to_cli).pack(side=tk.LEFT, padx=5)
         self.save_service_btn = tk.Button(button_frame, text="Save CLI Output", command=self.save_service_output, state=tk.DISABLED)
         self.save_service_btn.pack(side=tk.LEFT, padx=5)
+
+        tk.Button(button_frame, text="Clear Form", command=self.clear_service_form, bg="#DC143C", fg="white").pack(side=tk.RIGHT, padx=5)
         
         # Output area with lock/unlock controls
         output_frame = tk.Frame(self.service_tab)
@@ -289,8 +293,8 @@ class CLIConverter:
         return entry_data
 
     def remove_entry(self, entry_data):
-        """Remove the address entry"""
-        if entry_data in self.address_entries:
+        """Remove the address entry."""
+        if len(self.address_entries) > 1 and entry_data in self.address_entries:
             self.address_entries.remove(entry_data)
             self.update_address_pagination()
 
@@ -310,8 +314,8 @@ class CLIConverter:
         return entry_data
 
     def remove_service_entry(self, entry_data):
-        """Remove the service entry"""
-        if entry_data in self.service_entries:
+        """Remove the service entry."""
+        if len(self.service_entries) > 1 and entry_data in self.service_entries:
             self.service_entries.remove(entry_data)
             self.update_service_pagination()
     
@@ -380,6 +384,8 @@ class CLIConverter:
         remove_btn = tk.Button(self.main_address_frame, text="Remove", 
                               command=lambda: self.remove_entry(entry_data))
         remove_btn.grid(row=row, column=4, padx=5, pady=2)
+        if len(self.address_entries) <= 1:
+            remove_btn.config(state=tk.DISABLED)
         entry_data['remove_btn'] = remove_btn
         
         # Store widget references for cleanup
@@ -417,6 +423,29 @@ class CLIConverter:
         if self.current_address_page < total_pages - 1:
             self.current_address_page += 1
             self.update_address_pagination()
+
+    def clear_address_form(self):
+        """Clear all address entries and reset the form to a single empty entry."""
+        if messagebox.askokcancel("Confirm Clear", "Are you sure you want to clear all address entries? This cannot be undone."):
+            self.global_sr_number.set("")
+            self.global_group_name.set("")
+
+            # Clear all entry data
+            self.address_entries.clear()
+            self.address_cli_output = ""
+            self.save_address_btn.config(state=tk.DISABLED)
+
+            # Clear the output text area
+            self.address_output.config(state=tk.NORMAL)
+            self.address_output.delete(1.0, tk.END)
+            if self.address_lock_var.get():
+                self.address_output.config(state=tk.DISABLED)
+
+            # Add a single fresh entry, which will trigger a UI refresh
+            self.create_address_entry()
+
+            self.logger.info("Address form cleared by user.")
+            messagebox.showinfo("Form Cleared", "All address entries have been cleared.")
     
     # Pagination methods for Service tab
     def update_service_pagination(self):
@@ -489,6 +518,8 @@ class CLIConverter:
         remove_btn = tk.Button(self.main_service_frame, text="Remove", 
                               command=lambda: self.remove_service_entry(entry_data))
         remove_btn.grid(row=row, column=5, padx=5, pady=2)
+        if len(self.service_entries) <= 1:
+            remove_btn.config(state=tk.DISABLED)
         entry_data['remove_btn'] = remove_btn
         
         # Store widget references for cleanup
@@ -528,6 +559,29 @@ class CLIConverter:
         if self.current_service_page < total_pages - 1:
             self.current_service_page += 1
             self.update_service_pagination()
+
+    def clear_service_form(self):
+        """Clear all service entries and reset the form to a single empty entry."""
+        if messagebox.askokcancel("Confirm Clear", "Are you sure you want to clear all service entries? This cannot be undone."):
+            self.service_sr_number.set("")
+            self.service_group_name.set("")
+
+            # Clear all entry data
+            self.service_entries.clear()
+            self.service_cli_output = ""
+            self.save_service_btn.config(state=tk.DISABLED)
+
+            # Clear the output text area
+            self.service_output.config(state=tk.NORMAL)
+            self.service_output.delete(1.0, tk.END)
+            if self.service_lock_var.get():
+                self.service_output.config(state=tk.DISABLED)
+
+            # Add a single fresh entry, which will trigger a UI refresh
+            self.create_service_entry()
+
+            self.logger.info("Service form cleared by user.")
+            messagebox.showinfo("Form Cleared", "All service entries have been cleared.")
 
     # Address object functionality methods
     def upload_address_txt(self):
